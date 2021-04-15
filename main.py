@@ -2,6 +2,8 @@
 Training script of VisTR
 Modified from DETR (https://github.com/facebookresearch/detr)
 """
+from comet_ml import Experiment
+experiment = Experiment()
 import argparse
 import datetime
 import json
@@ -107,6 +109,9 @@ def get_args_parser():
 
 
 def main(args):
+    experiment.log_others(vars(args))
+    experiment.log_code('datasets/ytvos.py')
+    experiment.log_code('engine.py')
     utils.init_distributed_mode(args)
     print("git:\n  {}\n".format(utils.get_sha()))
 
@@ -181,7 +186,7 @@ def main(args):
             sampler_train.set_epoch(epoch)
         train_stats = train_one_epoch(
             model, criterion, data_loader_train, optimizer, device, epoch,
-            args.clip_max_norm)
+            args.clip_max_norm, experiment)
         lr_scheduler.step()
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
@@ -196,6 +201,7 @@ def main(args):
                     'epoch': epoch,
                     'args': args,
                 }, checkpoint_path)
+                experiment.log_model('vistr', checkpoint_path)
 
 
     total_time = time.time() - start_time
