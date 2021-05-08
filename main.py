@@ -2,8 +2,7 @@
 Training script of VisTR
 Modified from DETR (https://github.com/facebookresearch/detr)
 """
-from comet_ml import Experiment
-experiment = Experiment()
+from util.comet_utils import CometLogger
 import argparse
 import datetime
 import json
@@ -105,13 +104,17 @@ def get_args_parser():
     parser.add_argument('--world_size', default=1, type=int,
                         help='number of distributed processes')
     parser.add_argument('--dist_url', default='env://', help='url used to set up distributed training')
+    # Logging
+    parser.add_argument('--comet', default=False, type=bool, help='enable comet logging')
     return parser
 
 
 def main(args):
-    experiment.log_others(vars(args))
-    experiment.log_code('datasets/ytvos.py')
-    experiment.log_code('engine.py')
+    comet_logger = CometLogger(args.comet)
+
+    comet_logger.log_others(vars(args))
+    comet_logger.log_code('datasets/ytvos.py')
+    comet_logger.log_code('engine.py')
     utils.init_distributed_mode(args)
     print("git:\n  {}\n".format(utils.get_sha()))
 
@@ -186,7 +189,7 @@ def main(args):
             sampler_train.set_epoch(epoch)
         train_stats = train_one_epoch(
             model, criterion, data_loader_train, optimizer, device, epoch,
-            args.clip_max_norm, experiment)
+            args.clip_max_norm, comet_logger)
         lr_scheduler.step()
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
@@ -201,7 +204,7 @@ def main(args):
                     'epoch': epoch,
                     'args': args,
                 }, checkpoint_path)
-                experiment.log_model('vistr', checkpoint_path)
+                comet_logger.log_model('vistr', checkpoint_path)
 
 
     total_time = time.time() - start_time
