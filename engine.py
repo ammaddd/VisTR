@@ -15,7 +15,8 @@ from datasets.panoptic_eval import PanopticEvaluator
 
 def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
-                    device: torch.device, epoch: int, max_norm: float = 0):
+                    device: torch.device, epoch: int, max_norm: float = 0,
+                    comet_logger = None):
     model.train()
     criterion.train()
     metric_logger = utils.MetricLogger(delimiter="  ")
@@ -23,7 +24,8 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
     metric_logger.add_meter('class_error', utils.SmoothedValue(window_size=1, fmt='{value:.2f}'))
     header = 'Epoch: [{}]'.format(epoch)
     print_freq = 10
-    for samples, targets in metric_logger.log_every(data_loader, print_freq, header):
+    for index, (samples, targets) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
+        global_step = epoch*len(data_loader)+index
         samples = samples.to(device)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
         outputs = model(samples)
@@ -51,6 +53,12 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
         optimizer.step()
 
+        comet_logger.log_metrics(loss_dict_reduced_scaled, step=global_step,
+                                 epoch=epoch)
+        comet_logger.log_metric('loss', loss_value, step=global_step,
+                                epoch=epoch)
+        comet_logger.log_metric('lr', optimizer.param_groups[0]["lr"],
+                                step=global_step, epoch=epoch)
         metric_logger.update(loss=loss_value, **loss_dict_reduced_scaled, **loss_dict_reduced_unscaled)
         metric_logger.update(class_error=loss_dict_reduced['class_error'])
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
